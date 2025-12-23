@@ -5,6 +5,12 @@
   "description": "一键填充表单、选择单选/多选框的调试工具",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": "1.png"
+  },
+  "icons": {
+    "16": "1.png",
+    "48": "1.png",
+    "128": "1.png"
   }
 }
