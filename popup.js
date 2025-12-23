@@ -29,7 +29,6 @@ function runAction(action, textValue, numberValue) {
       document.querySelectorAll('.el-input__inner, .el-textarea__inner, input[type="text"], input[type="number"], input:not([type]), textarea').forEach(input => {
         if (input.disabled || input.readOnly) return;
         const isTextarea = input.tagName === 'TEXTAREA';
-        const isNumber = input.type === 'number' || input.classList.contains('el-input__inner');
         const proto = isTextarea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
         const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
         setter.call(input, isTextarea ? textValue : numberValue);
@@ -63,10 +62,44 @@ function runAction(action, textValue, numberValue) {
       console.log('%c✅ 选项选择完成', 'color: #00ff88; font-weight: bold;');
     },
     
+    selectDropdowns: () => {
+      // Element Plus 下拉菜单
+      const selects = document.querySelectorAll('.el-select');
+      let count = 0;
+      
+      selects.forEach((select, index) => {
+        setTimeout(() => {
+          // 点击打开下拉菜单
+          const input = select.querySelector('.el-input') || select.querySelector('.el-select__wrapper');
+          if (input && !select.classList.contains('is-disabled')) {
+            input.click();
+            
+            // 等待下拉菜单出现后选择第一个选项
+            setTimeout(() => {
+              const dropdown = document.querySelector('.el-select-dropdown:not([style*="display: none"])') 
+                || document.querySelector('.el-popper[aria-hidden="false"]');
+              if (dropdown) {
+                const firstOption = dropdown.querySelector('.el-select-dropdown__item:not(.is-disabled)');
+                if (firstOption) {
+                  firstOption.click();
+                  count++;
+                }
+              }
+            }, 100);
+          }
+        }, index * 300); // 每个下拉菜单间隔300ms
+      });
+      
+      setTimeout(() => {
+        console.log('%c✅ 下拉菜单选择完成，共选择 ' + selects.length + ' 个', 'color: #00ff88; font-weight: bold;');
+      }, selects.length * 300 + 200);
+    },
+    
     fillAll: () => {
       actions.fillInputs();
       setTimeout(() => actions.selectOptions(), 100);
-      console.log('%c🚀 一键全填完成', 'color: #00ccff; font-weight: bold;');
+      setTimeout(() => actions.selectDropdowns(), 200);
+      console.log('%c🚀 一键填充完成', 'color: #00ccff; font-weight: bold;');
     }
   };
   
@@ -76,6 +109,29 @@ function runAction(action, textValue, numberValue) {
 // 绑定按钮事件
 document.getElementById('fillAll').onclick = () => executeAction('fillAll');
 document.getElementById('selectOptions').onclick = () => executeAction('selectOptions');
+document.getElementById('selectDropdowns').onclick = () => executeAction('selectDropdowns');
+
+// 固定面板按钮
+document.getElementById('pinPanel').onclick = async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await chrome.tabs.sendMessage(tab.id, { action: 'pinPanel' });
+    // 关闭popup
+    window.close();
+  } catch (error) {
+    console.log('发送消息失败，尝试注入脚本');
+    // 如果content script没有加载，直接注入创建面板的代码
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['content.js']
+    });
+    setTimeout(async () => {
+      await chrome.tabs.sendMessage(tab.id, { action: 'pinPanel' });
+      window.close();
+    }, 100);
+  }
+};
 
 // 保存设置
 document.getElementById('textValue').onchange = (e) => {
@@ -85,27 +141,10 @@ document.getElementById('numberValue').onchange = (e) => {
   chrome.storage.local.set({ numberValue: e.target.value });
 };
 
-// 悬浮按钮开关
-const floatToggle = document.getElementById('floatToggle');
-floatToggle.onclick = async () => {
-  floatToggle.classList.toggle('active');
-  const show = floatToggle.classList.contains('active');
-  chrome.storage.local.set({ showFloatBtn: show });
-  
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.tabs.sendMessage(tab.id, { action: 'toggleFloatBtn', show });
-    console.log('悬浮按钮状态已更新:', show);
-  } catch (error) {
-    console.log('发送消息失败，可能需要刷新页面');
-  }
-};
-
 // 加载保存的设置
-chrome.storage.local.get(['textValue', 'numberValue', 'showFloatBtn'], (data) => {
+chrome.storage.local.get(['textValue', 'numberValue'], (data) => {
   if (data.textValue) document.getElementById('textValue').value = data.textValue;
   if (data.numberValue) document.getElementById('numberValue').value = data.numberValue;
-  if (data.showFloatBtn === false) floatToggle.classList.remove('active');
 });
 
 // 测试按钮
@@ -120,6 +159,6 @@ document.getElementById('testBtn').onclick = async () => {
       }
     });
   } catch (error) {
-    alert('❌ 扩展无法在此页面工作，请刷新页面后重试');
+    alert('❌ 扩展无法在此页面工作');
   }
 };
