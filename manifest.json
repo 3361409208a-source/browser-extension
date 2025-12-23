@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "表单自动填充调试工具",
+  "version": "1.0.0",
+  "description": "一键填充表单、选择单选/多选框的调试工具",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ]
+}

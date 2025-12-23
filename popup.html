@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      width: 240px;
+      padding: 0;
+      font-family: 'Consolas', 'Monaco', monospace;
+      background: #0a0e17;
+      color: #00ff88;
+      overflow: hidden;
+    }
+    
+    /* 数字矩阵背景 */
+    .matrix-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.1;
+      font-size: 10px;
+      line-height: 1;
+      color: #00ff88;
+      overflow: hidden;
+      z-index: 0;
+    }
+    
+    .container {
+      position: relative;
+      z-index: 1;
+      padding: 16px;
+    }
+    
+    /* 头部 */
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+      position: relative;
+    }
+    
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #00ff88, transparent);
+      box-shadow: 0 0 10px #00ff88;
+    }
+    
+    .logo {
+      font-size: 24px;
+      margin-bottom: 4px;
+      text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .title {
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #00ccff;
+      text-shadow: 0 0 5px #00ccff;
+    }
+    
+    .version {
+      font-size: 9px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    /* 按钮组 */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .cyber-btn {
+      position: relative;
+      padding: 12px 16px;
+      background: transparent;
+      border: 1px solid rgba(0, 255, 136, 0.4);
+      color: #00ff88;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.3s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+    }
+    
+    .cyber-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .cyber-btn::after {
+      content: '>';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: all 0.3s;
+      color: #00ccff;
+    }
+    
+    .cyber-btn:hover {
+      border-color: #00ff88;
+      box-shadow: 0 0 15px rgba(0, 255, 136, 0.3), inset 0 0 15px rgba(0, 255, 136, 0.1);
+      text-shadow: 0 0 5px #00ff88;
+    }
+    
+    .cyber-btn:hover::before { opacity: 1; }
+    .cyber-btn:hover::after { opacity: 1; right: 10px; }
+    
+    .cyber-btn:active {
+      transform: scale(0.98);
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+    }
+    
+    .btn-icon {
+      margin-right: 8px;
+      font-size: 14px;
+    }
+    
+    /* 分隔线 */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.3), transparent);
+      margin: 12px 0;
+      position: relative;
+    }
+    
+    .divider::before {
+      content: '◆';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: #0a0e17;
+      padding: 0 8px;
+      font-size: 8px;
+      color: #00ccff;
+    }
+    
+    /* 主操作按钮 */
+    .primary-btn {
+      border-color: #00ccff;
+      color: #00ccff;
+      background: rgba(0, 204, 255, 0.05);
+    }
+    
+    .primary-btn:hover {
+      border-color: #00ccff;
+      box-shadow: 0 0 15px rgba(0, 204, 255, 0.4), inset 0 0 15px rgba(0, 204, 255, 0.1);
+      text-shadow: 0 0 5px #00ccff;
+    }
+    
+    /* 设置区域 */
+    .settings {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(0, 255, 136, 0.2);
+    }
+    
+    .settings-title {
+      font-size: 10px;
+      color: #666;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .settings-title::before,
+    .settings-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(0, 255, 136, 0.3), transparent);
+    }
+    
+    .settings-title::after {
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.3));
+    }
+    
+    .setting-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+    
+    .setting-item label {
+      color: #888;
+    }
+    
+    .setting-item input[type="text"] {
+      width: 90px;
+      padding: 6px 8px;
+      background: rgba(0, 255, 136, 0.05);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      color: #00ff88;
+      font-family: inherit;
+      font-size: 11px;
+      outline: none;
+      transition: all 0.3s;
+    }
+    
+    .setting-item input[type="text"]:focus {
+      border-color: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+    }
+    
+    /* 开关 */
+    .toggle-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #888;
+      margin-top: 10px;
+    }
+    
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 18px;
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      background: #666;
+      transition: all 0.3s;
+    }
+    
+    .toggle.active {
+      border-color: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+    }
+    
+    .toggle.active::after {
+      left: 20px;
+      background: #00ff88;
+      box-shadow: 0 0 5px #00ff88;
+    }
+    
+    /* 底部状态 */
+    .status-bar {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0, 255, 136, 0.1);
+      font-size: 9px;
+      color: #444;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: #00ff88;
+      border-radius: 50%;
+      margin-right: 4px;
+      animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    
+    /* 扫描线效果 */
+    .scanline {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.5), transparent);
+      animation: scan 3s linear infinite;
+      pointer-events: none;
+      z-index: 100;
+    }
+    
+    @keyframes scan {
+      0% { top: 0; opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="matrix-bg" id="matrix"></div>
+  <div class="scanline"></div>
+  
+  <div class="container">
+    <div class="header">
+      <div class="logo">⚡</div>
+      <div class="title">调试工具</div>
+      <div class="version">v1.0.0 // 赛博</div>
+    </div>
+    
+    <div class="btn-group">
+      <button class="cyber-btn primary-btn" id="fillAll">
+        <span class="btn-icon">🚀</span>一键填充
+      </button>
+      <button class="cyber-btn" id="selectOptions">
+        <span class="btn-icon">☑️</span>一键选择
+      </button>
+    </div>
+    
+    <div class="settings">
+      <div class="settings-title">配置</div>
+      <div class="setting-item">
+        <label>文本值:</label>
+        <input type="text" id="textValue" value="测试数据">
+      </div>
+      <div class="setting-item">
+        <label>数字值:</label>
+        <input type="text" id="numberValue" value="100">
+      </div>
+      <div class="toggle-wrapper">
+        <div class="toggle active" id="floatToggle"></div>
+        <span>悬浮按钮</span>
+      </div>
+    </div>
+    
+    <div class="status-bar">
+      <span><span class="status-dot"></span>在线</span>
+      <span>系统就绪</span>
+      <button id="testBtn" style="background:none;border:1px solid #666;color:#666;padding:2px 6px;font-size:9px;cursor:pointer;">测试</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

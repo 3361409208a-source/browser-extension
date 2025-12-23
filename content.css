@@ -1,0 +1,8 @@
+/* 悬浮按钮和面板的额外样式 */
+#debug-tool-float {
+  user-select: none;
+}
+
+#debug-tool-panel .dt-btn {
+  transition: all 0.2s;
+}
