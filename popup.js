@@ -63,111 +63,185 @@ function runAction(action, textValue, numberValue) {
     selectDropdowns: () => {
       const selects = [...document.querySelectorAll('.el-select:not(.is-disabled)')];
       console.log('%c📋 开始处理下拉菜单，共找到 ' + selects.length + ' 个', 'color: #00ccff; font-weight: bold; font-size: 14px;');
-      
+
       if (selects.length === 0) {
         console.log('%c⚠️ 未找到下拉菜单', 'color: #ff9900;');
         return;
       }
-      
+
+      // 方法1: 尝试直接操作 Vue 组件实例
+      const tryVueMethod = (selectEl) => {
+        try {
+          // 查找 Vue 实例
+          const vueInstance = selectEl.__vueParentComponent || selectEl.__vue__ || 
+                             (selectEl._vnode && selectEl._vnode.ctx);
+          
+          if (vueInstance) {
+            // 尝试获取组件实例
+            const component = vueInstance.ctx || vueInstance.setupState || vueInstance;
+            
+            // Element Plus Select 组件通常有 handleOptionSelect 方法
+            if (component.handleOptionSelect) {
+              // 获取第一个选项
+              const options = component.options || component.cachedOptions || [];
+              if (options.length > 0) {
+                component.handleOptionSelect(options[0]);
+                return true;
+              }
+            }
+            
+            // 尝试直接设置值
+            if (component.modelValue !== undefined) {
+              const options = component.options || [];
+              if (options.length > 0) {
+                component['update:modelValue']?.(options[0].value);
+                component.handleChange?.(options[0].value);
+                return true;
+              }
+            }
+          }
+        } catch (e) {
+          console.log('  Vue 方法失败:', e.message);
+        }
+        return false;
+      };
+
+      // 全新方法：使用键盘导航 + MutationObserver 监听下拉菜单出现
+      const selectWithKeyboard = async (selectEl) => {
+        return new Promise((resolve) => {
+          const input = selectEl.querySelector('input');
+          if (!input) {
+            resolve(false);
+            return;
+          }
+
+          // 先关闭所有下拉菜单
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+          
+          setTimeout(() => {
+            selectEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 使用 MutationObserver 监听下拉菜单出现
+            const observer = new MutationObserver((mutations, obs) => {
+              // 查找可见的下拉菜单
+              const dropdowns = document.querySelectorAll('.el-select-dropdown, .el-popper');
+              for (const dropdown of dropdowns) {
+                const rect = dropdown.getBoundingClientRect();
+                const style = window.getComputedStyle(dropdown);
+                
+                if (rect.width > 0 && rect.height > 0 && 
+                    style.display !== 'none' && 
+                    style.visibility !== 'hidden') {
+                  
+                  const option = dropdown.querySelector('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
+                  if (option) {
+                    obs.disconnect();
+                    
+                    // 找到选项后，使用更可靠的方式点击
+                    setTimeout(() => {
+                      // 方法1: 直接点击选项
+                      option.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                      
+                      // 创建更真实的鼠标事件
+                      const mouseEvents = [
+                        new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, buttons: 1 }),
+                        new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window, buttons: 1 }),
+                        new MouseEvent('click', { bubbles: true, cancelable: true, view: window, buttons: 1 })
+                      ];
+                      
+                      mouseEvents.forEach(evt => option.dispatchEvent(evt));
+                      
+                      // 也尝试直接调用 click
+                      if (typeof option.click === 'function') {
+                        option.click();
+                      }
+                      
+                      resolve(true);
+                    }, 50);
+                    return;
+                  }
+                }
+              }
+            });
+
+            // 开始观察 DOM 变化
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class']
+            });
+
+            // 设置超时
+            setTimeout(() => {
+              observer.disconnect();
+              resolve(false);
+            }, 3000);
+
+            // Focus 到 input
+            input.focus();
+            
+            // 触发键盘事件打开下拉菜单：Space 或 Enter
+            setTimeout(() => {
+              const spaceEvent = new KeyboardEvent('keydown', {
+                key: ' ',
+                code: 'Space',
+                keyCode: 32,
+                which: 32,
+                bubbles: true,
+                cancelable: true
+              });
+              input.dispatchEvent(spaceEvent);
+              
+              setTimeout(() => {
+                const enterEvent = new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  which: 13,
+                  bubbles: true,
+                  cancelable: true
+                });
+                input.dispatchEvent(enterEvent);
+                
+                // 如果键盘事件不行，尝试点击
+                setTimeout(() => {
+                  const wrapper = selectEl.querySelector('.el-select__wrapper') || 
+                                selectEl.querySelector('.el-input__wrapper') ||
+                                selectEl;
+                  wrapper.click();
+                }, 100);
+              }, 100);
+            }, 100);
+          }, 200);
+        });
+      };
+
       let index = 0;
       let successCount = 0;
-      
-      function selectNext() {
+
+      async function selectNext() {
         if (index >= selects.length) {
           console.log('%c✅ 全部完成！成功: ' + successCount + '/' + selects.length, 'color: #00ff88; font-weight: bold; font-size: 14px;');
           return;
         }
-        
-        console.log('%c--- 处理第 ' + (index + 1) + '/' + selects.length + ' 个下拉菜单 ---', 'color: #00ccff;');
-        
+
         const select = selects[index];
-        const clickTargets = [
-          select.querySelector('.el-select__wrapper'),
-          select.querySelector('.el-input__wrapper'),
-          select.querySelector('.el-input'),
-          select
-        ].filter(Boolean);
-        
-        console.log('  找到 ' + clickTargets.length + ' 个可点击目标');
-        
-        let clicked = false;
-        for (let i = 0; i < clickTargets.length; i++) {
-          try {
-            clickTargets[i].click();
-            clicked = true;
-            console.log('  ✓ 点击成功（目标' + (i + 1) + '）');
-            break;
-          } catch (e) {
-            console.log('  ✗ 点击失败（目标' + (i + 1) + '）:', e.message);
-          }
+        console.log('%c--- 处理第 ' + (index + 1) + '/' + selects.length + ' 个下拉菜单 ---', 'color: #00ccff;');
+
+        const success = await selectWithKeyboard(select);
+
+        if (success) {
+          successCount++;
+          console.log('%c  ✓ 成功选择第 ' + (index + 1) + ' 个！', 'color: #00ff88; font-weight: bold;');
+        } else {
+          console.log('%c  ✗ 选择失败', 'color: #ff4444;');
         }
-        
-        if (!clicked) {
-          console.log('%c  ✗ 无法点击，跳过', 'color: #ff4444;');
-          index++;
-          setTimeout(selectNext, 100);
-          return;
-        }
-        
-        // 等待下拉菜单出现
-        setTimeout(() => {
-          console.log('  查找下拉选项...');
-          let found = false;
-          
-          // 方法1: 通过 getBoundingClientRect 查找可见的下拉菜单
-          const allDropdowns = document.querySelectorAll('.el-select-dropdown');
-          console.log('  找到 ' + allDropdowns.length + ' 个下拉菜单元素');
-          
-          for (let i = 0; i < allDropdowns.length; i++) {
-            if (found) break;
-            const dropdown = allDropdowns[i];
-            const rect = dropdown.getBoundingClientRect();
-            console.log('  下拉菜单' + (i + 1) + ' 尺寸:', rect.width + 'x' + rect.height);
-            
-            if (rect.width > 0 && rect.height > 0) {
-              const options = dropdown.querySelectorAll('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
-              console.log('  找到 ' + options.length + ' 个可选项');
-              
-              if (options.length > 0) {
-                options[0].click();
-                successCount++;
-                found = true;
-                console.log('%c  ✓ 成功选择第 ' + (index + 1) + ' 个！', 'color: #00ff88; font-weight: bold;');
-              }
-            }
-          }
-          
-          // 方法2: 查找 body 下的 popper
-          if (!found) {
-            console.log('  尝试方法2: 查找 popper...');
-            const poppers = document.querySelectorAll('body > .el-popper, body > div[id^="el-popper-"]');
-            console.log('  找到 ' + poppers.length + ' 个 popper');
-            
-            for (const popper of poppers) {
-              if (found) break;
-              const style = window.getComputedStyle(popper);
-              if (style.display !== 'none' && style.visibility !== 'hidden') {
-                const option = popper.querySelector('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
-                if (option) {
-                  option.click();
-                  successCount++;
-                  found = true;
-                  console.log('%c  ✓ 成功选择第 ' + (index + 1) + ' 个（方法2）！', 'color: #00ff88; font-weight: bold;');
-                }
-              }
-            }
-          }
-          
-          if (!found) {
-            console.log('%c  ✗ 未找到可选项', 'color: #ff9900;');
-          }
-          
-          index++;
-          console.log('  准备处理下一个...\n');
-          setTimeout(selectNext, 400);
-        }, 300);
+
+        index++;
+        setTimeout(selectNext, 500);
       }
-      
+
       selectNext();
     },
     

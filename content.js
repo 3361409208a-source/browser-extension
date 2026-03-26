@@ -369,82 +369,232 @@ function runAction(action) {
     selectDropdowns: () => {
       const selects = [...document.querySelectorAll('.el-select:not(.is-disabled)')];
       console.log('%c📋 开始处理下拉菜单，共找到 ' + selects.length + ' 个', 'color: #00ccff; font-weight: bold; font-size: 14px;');
-      
+
       if (selects.length === 0) return;
-      
+
+      // 方法1: 尝试直接操作 Vue 组件实例
+      const tryVueMethod = (selectEl) => {
+        try {
+          const vueInstance = selectEl.__vueParentComponent || selectEl.__vue__ || 
+                             (selectEl._vnode && selectEl._vnode.ctx);
+          
+          if (vueInstance) {
+            const component = vueInstance.ctx || vueInstance.setupState || vueInstance;
+            
+            if (component.handleOptionSelect) {
+              const options = component.options || component.cachedOptions || [];
+              if (options.length > 0) {
+                component.handleOptionSelect(options[0]);
+                return true;
+              }
+            }
+            
+            if (component.modelValue !== undefined) {
+              const options = component.options || [];
+              if (options.length > 0) {
+                component['update:modelValue']?.(options[0].value);
+                component.handleChange?.(options[0].value);
+                return true;
+              }
+            }
+          }
+        } catch (e) {}
+        return false;
+      };
+
+      // 方法2: 直接操作 DOM 和事件（仅点击，不填充）
+      const tryDirectMethod = async (selectEl) => {
+        return new Promise((resolve) => {
+          const input = selectEl.querySelector('input');
+          if (!input) {
+            resolve(false);
+            return;
+          }
+
+          try {
+            // 先关闭其他下拉菜单
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            
+            setTimeout(() => {
+              selectEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+              
+              // 先点击打开下拉菜单
+              const wrapper = selectEl.querySelector('.el-select__wrapper') || 
+                            selectEl.querySelector('.el-input__wrapper') ||
+                            selectEl;
+              
+              wrapper.click();
+              
+              // 等待下拉菜单出现后点击选项
+              let attempts = 0;
+              const checkAndClick = () => {
+                attempts++;
+                
+                const allOptions = document.querySelectorAll('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
+                if (allOptions.length > 0) {
+                  const option = allOptions[0];
+                  option.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                  
+                  // 只触发点击事件，不设置值
+                  ['mousedown', 'mouseup', 'click'].forEach(eventType => {
+                    const evt = new MouseEvent(eventType, {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      detail: 1
+                    });
+                    option.dispatchEvent(evt);
+                  });
+                  option.click();
+                  
+                  resolve(true);
+                  return;
+                }
+                
+                if (attempts < 20) {
+                  setTimeout(checkAndClick, 100);
+                } else {
+                  resolve(false);
+                }
+              };
+              
+              setTimeout(checkAndClick, 200);
+            }, 100);
+          } catch (e) {
+            resolve(false);
+          }
+        });
+      };
+
+      // 方法3: 强制展开下拉菜单并选择
+      const tryForceExpand = async (selectEl) => {
+        return new Promise((resolve) => {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          
+          setTimeout(() => {
+            selectEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+            
+            const input = selectEl.querySelector('input');
+            const wrapper = selectEl.querySelector('.el-select__wrapper') || 
+                          selectEl.querySelector('.el-input__wrapper') ||
+                          selectEl;
+            
+            if (!input || !wrapper) {
+              resolve(false);
+              return;
+            }
+
+            input.focus();
+            wrapper.focus();
+            
+            const clickEvt = new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              detail: 1
+            });
+            wrapper.dispatchEvent(clickEvt);
+            wrapper.click();
+            input.click();
+
+            let attempts = 0;
+            const check = () => {
+              attempts++;
+              
+              const dropdowns = document.querySelectorAll('.el-select-dropdown, .el-popper');
+              for (const dropdown of dropdowns) {
+                const rect = dropdown.getBoundingClientRect();
+                const style = window.getComputedStyle(dropdown);
+                
+                if (rect.width > 0 && rect.height > 0 && 
+                    style.display !== 'none' && 
+                    style.visibility !== 'hidden') {
+                  
+                  const option = dropdown.querySelector('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
+                  if (option) {
+                    option.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                    
+                    ['mousedown', 'mouseup', 'click'].forEach(eventType => {
+                      const evt = new MouseEvent(eventType, {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        detail: 1
+                      });
+                      option.dispatchEvent(evt);
+                    });
+                    option.click();
+                    
+                    resolve(true);
+                    return;
+                  }
+                }
+              }
+              
+              if (attempts < 30) {
+                setTimeout(check, 100);
+              } else {
+                resolve(false);
+              }
+            };
+            
+            setTimeout(check, 200);
+          }, 100);
+        });
+      };
+
       let index = 0;
       let successCount = 0;
-      
-      function selectNext() {
+
+      async function selectNext() {
         if (index >= selects.length) {
           console.log('%c✅ 全部完成！成功: ' + successCount + '/' + selects.length, 'color: #00ff88; font-weight: bold; font-size: 14px;');
           return;
         }
-        
-        console.log('%c--- 处理第 ' + (index + 1) + '/' + selects.length + ' 个 ---', 'color: #00ccff;');
-        
+
         const select = selects[index];
-        const clickTargets = [
-          select.querySelector('.el-select__wrapper'),
-          select.querySelector('.el-input__wrapper'),
-          select.querySelector('.el-input'),
-          select
-        ].filter(Boolean);
+        console.log('%c--- 处理第 ' + (index + 1) + '/' + selects.length + ' 个 ---', 'color: #00ccff;');
+
+        let success = false;
         
-        let clicked = false;
-        for (const target of clickTargets) {
-          try {
-            target.click();
-            clicked = true;
-            break;
-          } catch (e) {}
+        // 方法1: Vue 方法（同步）
+        if (!success) {
+          success = tryVueMethod(select);
+          if (success) {
+            console.log('%c  ✓ Vue 方法成功', 'color: #00ff88;');
+            await new Promise(resolve => setTimeout(resolve, 200)); // 等待一下确保生效
+          }
         }
         
-        if (!clicked) {
-          index++;
-          setTimeout(selectNext, 100);
-          return;
+        // 方法2: 直接方法（异步）
+        if (!success) {
+          success = await tryDirectMethod(select);
+          if (success) {
+            console.log('%c  ✓ 直接方法成功', 'color: #00ff88;');
+            await new Promise(resolve => setTimeout(resolve, 200)); // 等待一下确保生效
+          }
         }
         
-        setTimeout(() => {
-          let found = false;
-          const allDropdowns = document.querySelectorAll('.el-select-dropdown');
-          
-          for (const dropdown of allDropdowns) {
-            if (found) break;
-            const rect = dropdown.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              const option = dropdown.querySelector('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
-              if (option) {
-                option.click();
-                successCount++;
-                found = true;
-                console.log('%c  ✓ 第 ' + (index + 1) + ' 个', 'color: #00ff88;');
-              }
-            }
+        // 方法3: 强制展开（异步）
+        if (!success) {
+          success = await tryForceExpand(select);
+          if (success) {
+            console.log('%c  ✓ 强制展开成功', 'color: #00ff88;');
+            await new Promise(resolve => setTimeout(resolve, 200)); // 等待一下确保生效
           }
-          
-          if (!found) {
-            const poppers = document.querySelectorAll('body > .el-popper, body > div[id^="el-popper-"]');
-            for (const popper of poppers) {
-              if (found) break;
-              const style = window.getComputedStyle(popper);
-              if (style.display !== 'none') {
-                const option = popper.querySelector('.el-select-dropdown__item:not(.is-disabled):not(.is-selected)');
-                if (option) {
-                  option.click();
-                  successCount++;
-                  found = true;
-                }
-              }
-            }
-          }
-          
-          index++;
-          setTimeout(selectNext, 400);
-        }, 300);
+        }
+
+        if (success) {
+          successCount++;
+          console.log('%c  ✓ 成功选择第 ' + (index + 1) + ' 个！', 'color: #00ff88; font-weight: bold;');
+        } else {
+          console.log('%c  ✗ 所有方法都失败', 'color: #ff4444;');
+        }
+
+        index++;
+        setTimeout(selectNext, 400);
       }
-      
+
       selectNext();
     },
     fillAll: () => {
