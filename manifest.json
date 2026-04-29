@@ -3,10 +3,15 @@
   "name": "表单自动填充调试工具",
   "version": "1.0.0",
   "description": "一键填充表单、选择单选/多选框的调试工具",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": "1.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
   },
   "icons": {
     "16": "1.png",

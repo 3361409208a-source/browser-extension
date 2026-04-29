@@ -3,9 +3,10 @@ function initMatrix() {
   const matrix = document.getElementById('matrix');
   const chars = '01アイウエオカキクケコサシスセソタチツテト';
   let content = '';
-  for (let i = 0; i < 500; i++) {
+  // 增加字符数量以覆盖侧边栏可能的高度
+  for (let i = 0; i < 2000; i++) {
     content += chars[Math.floor(Math.random() * chars.length)];
-    if (i % 20 === 0) content += '\n';
+    if (i % 30 === 0) content += '\n';
   }
   matrix.textContent = content;
 }
@@ -177,7 +178,9 @@ function runAction(action, textValue, numberValue) {
               
               setTimeout(() => {
                 input.blur();
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                // 点击页面空白处关闭下拉菜单，而不是Escape
+                document.body.click();
+                document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 i++;
                 processNext();
               }, 150);
@@ -185,14 +188,14 @@ function runAction(action, textValue, numberValue) {
             } else if (attempt === 1) {
               console.log('%c↻ #' + (i+1) + ' 重试中...', 'color: #ff9900');
               input.blur();
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              document.body.click();
               setTimeout(() => {
                 processNext(2);
               }, 300);
             } else {
               console.log('%c✗ #' + (i+1) + ' 未找到选项', 'color: #ff4444');
               input.blur();
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              document.body.click();
               i++;
               processNext();
             }
