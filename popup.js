@@ -321,14 +321,50 @@ chrome.storage.local.get(['textValue', 'numberValue'], (data) => {
 document.getElementById('testBtn').onclick = async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // 诊断信息
+    console.log('=== 扩展诊断 ===');
+    console.log('当前标签页:', tab.url);
+    console.log('标签页ID:', tab.id);
+    console.log('标签页是否可访问:', tab.url && tab.url.startsWith('http'));
+
+    // 检查页面是否可访问
+    if (!tab.url || !tab.url.startsWith('http')) {
+      alert('❌ 此页面无法访问\n\n扩展需要访问普通网页才能工作。\n\n当前页面: ' + (tab.url || '未知') + '\n\n建议：\n- 在普通网页（如 baidu.com, github.com）上使用此扩展\n- 不要在浏览器内部页面使用');
+      return;
+    }
+
+    // 首先尝试通过消息通信
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'test' });
+      console.log('消息通信成功:', response);
+      alert('🔧 调试工具已激活！\n\n如果看到控制台日志，说明扩展工作正常。');
+      return;
+    } catch (msgError) {
+      console.log('消息通信失败，尝试注入脚本:', msgError);
+    }
+
+    // 注入 content.js
+    console.log('开始注入 content.js...');
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => {
-        console.log('%c🔧 扩展测试成功！', 'color: #00ff88; font-size: 16px; font-weight: bold;');
-        alert('🔧 调试工具扩展工作正常！');
-      }
+      files: ['content.js']
     });
+
+    // 等待脚本加载完成
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // 再次尝试消息通信
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'test' });
+      console.log('消息通信成功:', response);
+      alert('🔧 调试工具已激活！\n\n如果看到控制台日志，说明扩展工作正常。');
+    } catch (finalError) {
+      console.log('最终消息通信失败:', finalError);
+      alert('🔧 脚本已注入！\n\n请刷新页面或点击"固定到页面"按钮来激活调试工具。\n\n如果仍有问题，请按 F12 打开控制台查看详细错误信息。');
+    }
   } catch (error) {
-    alert('❌ 扩展无法在此页面工作');
+    console.error('测试失败:', error);
+    alert('❌ 扩展无法在此页面工作\n\n错误详情：\n' + error.message + '\n\n可能原因：\n1. 页面有严格的 CSP 限制\n2. 页面尚未完全加载\n3. 脚本注入被阻止\n\n建议：\n- 按 F12 打开控制台查看详细错误\n- 刷新页面后重试\n- 检查扩展权限是否正确配置');
   }
 };

@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "一键填充表单、选择单选/多选框的调试工具",
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_icon": "1.png"
   },

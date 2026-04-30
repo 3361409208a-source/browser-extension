@@ -648,6 +648,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       createFixedPanel();
     }
     sendResponse({ success: true, pinned: !!fixedPanel });
+  } else if (msg.action === 'test') {
+    // 测试消息处理
+    sendResponse({ success: true, message: '调试工具已激活' });
   }
   return true;
 });
